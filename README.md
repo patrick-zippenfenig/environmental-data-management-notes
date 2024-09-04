@@ -1,56 +1,67 @@
-# Notes on Environmental Data Management 
+# Considerations on Environmental Data Management
 
-More and more open-data available. Unthinkable 10 years ago. More and more NWPs offer open-data. Higher resolution, global and local area models. Enormous amounts of data, get harder and harder to access.
+The availability of open environmental data has grown exponentially, reaching levels that would have been unimaginable just a decade ago. National Weather Prediction (NWP) systems are increasingly offering open-access data, including high-resolution models that cover both global and local areas. However, as the volume of this data expands, accessing and utilizing it efficiently is becoming increasingly challenging.
 
-Open-Meteo sets out to change it. Fully open-source. Redistribute open-data environmental datasets with simple and fast APIs. Open-access for non-commercial use and research. Integrates models from most important NWPs for Europe, North America and Asia.
+Open-Meteo aims to address these challenges by revolutionizing the way environmental datasets are distributed and accessed. As a fully open-source platform, Open-Meteo provides streamlined access to environmental data through fast and user-friendly APIs. These services are open for non-commercial and research purposes and integrate models from the leading NWPs across Europe, North America, and Asia.
 
-The following describes how open-meteo is handling large amounts of environmental data, how it works and the direction for future developments for open-meteo as well as other users of environmental data.
+This paper outlines the strategies employed by Open-Meteo to manage large-scale environmental data, describes its operational mechanics, and discusses future directions for Open-Meteo and other entities that handle environmental datasets.
 
-## Problem space
-working with environmental data like weather forecast model output, reanalysis or satellite data in practice is challenging for end users.
+## Challenges in Environmental Data Management
 
-1. Data is big and getting bigger. But only need small portion of data -> have to download hundrets of GB of GRIB files. Huge CPU decoding time, throw away 99% of downloaded and processed data. A lot of effort that is not resource intensive, but also requires a lot of know how. Downloading like ERA5 even for just one location, may take 3-6 months.
-2. Difficult to use data. GRIB files, projections, aggregations, jumps from 1 to 3 to 6h data. Correct processing of solar radiation in order to calculate common variables like evapo reference transpiration ET0 or direct normalized irradiation (DNI) is immensely difficult for novice users.
-3. So many file formats and standards from various national weather services. No generic solution possible. Getting to know open data from each NWP is time consuming. Hard to discover which data is available. No central catalogue.
-4. Complicated integrations. To effectively get to a point where a user can "work" with weather data, it needs countless of libraries, tinkering to download and store data on a workstation, working with projections to find coordinates and work around problems like you cannot fit a year of ERA5-Land temperature data in memory.
+Managing environmental data, such as weather forecasts, reanalysis, and satellite data, presents significant challenges for end users. These challenges are particularly pronounced in the following areas:
 
+1. **Data Volume and Accessibility:** The sheer volume of environmental data is immense and continues to grow. Users often require only a small subset of this data, but are forced to download and process vast amounts—sometimes hundreds of gigabytes of GRIB files—just to extract the information they need. This not only results in substantial data download times time but also leads to the inefficient use of resources, as up to 99% of the downloaded and processed data may be discarded. For instance, downloading ERA5 data for a single location can take anywhere from three to six months, underscoring the time-consuming nature of this process.
 
-## The current Open-Meteo approach
-Open-Meteo is only a small step, but makes accessing data more transparent and faster. However, it does not yet solve all issues. Currently, Open-Meteo offers simple HTTP APIs to retrieve a small subset of weather data for individual locations.
+2. **Complexity of Data Usage:** The use of environmental data is complicated by various factors, such as the GRIB file format, varying data projections, and irregular temporal resolutions (e.g., data jumps from 1-hour to 3-hour to 6-hour intervals). Accurately processing this data to derive commonly used variables, such as reference evapotranspiration (ET0) or direct normal irradiance (DNI), is a daunting task for less experienced users.
 
-Open-Meteo is mostly focused on returning time-series data for coordinates. This is the exact opposite of how environmental is usually stored and distributed. 
+3. **Diverse File Formats and Standards:** Environmental data is provided in numerous file formats and follows different standards depending on the source, typically from national weather services. There is no universal solution to accommodate this diversity, making it time-consuming for users to familiarize themselves with the specific data offerings of each NWP. Furthermore, discovering available data can be a challenge due to the absence of a centralized catalog.
 
-Weather models updates are continuously updated into a time-series database, which offers the convenient feature that users cannot only get the latest model forecast, but seamlessly get a time-series from the past model runs. This enables that users can get a weather forecast from the current day which may already incorporate 0z, 6z and 12z, but also get data from past weeks, months and even years.
+4. **Complex Integrations:** To effectively utilize weather data, users must navigate a complex ecosystem of libraries and tools to download, store, and process data on their local systems. This includes working with various projections to determine coordinates and addressing practical challenges, such as the inability to load an entire year of ERA5-Land temperature data into memory.
 
-The database is not limited to weather forecast models, but also includes reanalysis data like ERA5 and ERA5-Land. 80+ years of hourly for a single location data can be accessed within less than 100 milliseconds! This is only possible by storing data efficiently for this use-case and optimizing for performance.
-
-What users can access:
-
-1. Weather forecasts for individual coordinates with integration of local area models for short term forecasting and global models for medium-range forecasting
-2. Past weather from high-resolution weather models (archives start ~2018) and reanalysis from ERA5 (1940 onwards with daily updates)
-3. Access forecasts with lead-time offsets to optimize for one or two day-ahead forecasting as well as generate validations showing the skill of individual forecast days.
-4. Access a large range of weather parameters including model and pressure level variables. Some parameters like Direct Normal Irradiance (DNI) or Reference Evapotranspiration (ET₀) are calculated on demand.
-5. Access to individual ensemble member forecasts for probabilistic forecasting. Around 30 to 50 members are available for each model. 
-6. Additional datasets like Air Quality based on Copernicus CAMS (EU + Global), Climate models (CMIPS HighRes), various ocean wave models, flood models (GloFAS)
-
-Access is not limited to single coordinates. Multiple coordinates can be requested in one API call as well. Bounding boxes are supported as well, but limited to smaller areas. The bounding box feature is not documented yet.
-
-Currently it is not possible to access forecasts for larger areas (large country / continent) or the entire globe. This is the worst case access pattern for the underlying database. User who want to generate maps, are asked to use GRIB files directly. However, support is technically possible, but requires some development to make it work.
+By addressing these challenges, Open-Meteo and similar initiatives aim to democratize access to environmental data, making it easier and more efficient for users to engage with this critical information. The following sections will delve into the specific methods and technologies employed by Open-Meteo to overcome these obstacles and outline the anticipated advancements in this field.
 
 
-## Storing data
+## The Current Open-Meteo Approach
+Open-Meteo represents an incremental yet significant step forward in making environmental data more accessible, transparent, and faster to retrieve. However, it does not yet address all the challenges associated with environmental data management. Presently, Open-Meteo provides simple HTTP APIs that allow users to retrieve a limited subset of weather data for specific locations.
 
-GRIB files work well to store a large field for a single timesteps of a single variable. Compression is reasonable good. To read a single location or small area, the entire field needs to be decoded. If multiple GRIB messages are concatenated in a single file, this requires an index file to access an individual parameters, complicating it further to access GRIB files on demand.
+The primary focus of Open-Meteo is on delivering time-series data for specific coordinates, which contrasts with the traditional method of storing and distributing environmental data. Weather model outputs are continuously ingested into a time-series database, enabling users to not only access the latest model forecasts but also seamlessly retrieve historical data from past model runs. This allows users to obtain weather forecasts that include updates from multiple model runs (e.g., 0z, 6z, and 12z) and to access historical data spanning weeks, months, or even years.
 
-An API serving weather data needs an underlying database which is specifically optimized to ingest large amounts of data and read small portions randomly preferable as a time-series.
+The database's capabilities extend beyond just weather forecast models; it also includes reanalysis data such as ERA5 and ERA5-Land. Users can access over 80 years of hourly data for a single location in less than 100 milliseconds, thanks to the efficient data storage and performance optimization tailored for this use case.
 
-The solution is relatively simple to structure weather data in multidimensional arrays, transpose for fast time access and store it on disk in formats like NetCDF, Zarr or HDF5. Data needs to be chunked (e.g. 50 gridpoints x 50 timesteps) and compressed using various formats like gzip, zstd, blosc, lz4 and others.
 
-A 0.25° model with 80 forecast steps every 3 hours has the dimensions of [1440; 720; 80]. Instead of storing each run in its own file, a continuous time-series can be formed by creating one file for every calender week and merge data into existing weekly files, a continuous time-series forms automatically.
+### What Users Can Access:
+
+1. **Weather Forecasts:** Time-series data for individual coordinates, integrating local area models for short-term forecasts and global models for medium-range forecasts.
+
+2. **Historical Weather Data:** High-resolution weather model archives (starting around 2018) and ERA5 reanalysis data (available from 1940 onwards with daily updates).
+
+3. **Lead-Time Forecasting and Validation:** Access to forecasts with lead-time offsets to optimize for short-term forecasting (one or two days ahead) and the ability to generate validations to assess the accuracy of individual forecast days.
+
+4. **Wide Range of Weather Parameters:** A variety of weather parameters, including model-specific and pressure level variables. Certain parameters, such as Direct Normal Irradiance (DNI) and Reference Evapotranspiration (ET₀), are calculated on demand.
+
+5. **Ensemble Forecasting:** Access to probabilistic forecasts through individual ensemble member data, with 30 to 50 members available per model.
+
+6. **Additional Datasets:** Access to air quality data based on Copernicus CAMS (covering Europe and globally), climate models (CMIP HighRes), various ocean wave models, and flood models (GloFAS).
+
+Users are not limited to requesting data for a single coordinate; multiple coordinates can be queried in a single API call. Additionally, bounding boxes can be used to request data for smaller areas, although this feature is currently undocumented.
+
+At present, it is not possible to access forecasts for larger areas, such as entire countries, continents, or the globe. Such requests are the most challenging for the underlying database, and users who need to generate maps are advised to use GRIB files directly. However, with further development, support for these broader queries could be implemented.
+
+
+### Data Storage
+
+GRIB files are effective for storing large fields corresponding to single time steps of individual variables, offering reasonably good compression. However, to access data for a specific location or small area, the entire field must be decoded. When multiple GRIB messages are concatenated in a single file, an index file is required to access individual parameters, further complicating on-demand access to GRIB files.
+
+To efficiently serve weather data through an API, the underlying database must be optimized for ingesting large volumes of data and for retrieving small, specific portions—preferably as time-series data.
+
+A practical solution involves structuring weather data into multidimensional arrays, transposing the data for quick time access, and storing it in formats like NetCDF, Zarr, or HDF5. The data should be chunked (e.g., 50 grid points x 50 time steps) and compressed using formats such as gzip, zstd, blosc, lz4, among others.
+
+For instance, a weather model with a 0.25° resolution and 80 forecast steps every 3 hours would have dimensions of [1440; 720; 80]. Instead of saving each run in a separate file, a continuous time-series can be formed by creating one file per calendar week and merging the new data into these weekly files. This automatically generates a continuous time-series.
+
 
 ![Database run overlap](images/database_run_overlap.png)
 
-By using simple files, data can then be arranged like this:
+The data can then be organized in a straightforward directory structure, such as:
 - `/temperature_2m/`
 - `/temperature_2m/2024_week01.nc`
 - `/temperature_2m/2024_week02.nc`
@@ -60,87 +71,85 @@ By using simple files, data can then be arranged like this:
 - `/precipitation/2024_week02.nc`
 - `/precipitation/2024_week03.nc`
 
-To return a forecast for the next 7 days, that starts at local-time midnight, simply open the corresponding weekly files and read data the correct days. Data for the past 10 weeks? Open the last 10 weeks files. Store all 51 ensemble members? Simply add another dimension [1440; 720; 51; 80].
+To provide a 7-day forecast starting at midnight local time, the system simply opens the corresponding weekly files and reads the relevant data. Need data for the past 10 weeks? The system accesses the files for the last 10 weeks. Storing data for all 51 ensemble members? This is easily managed by adding another dimension, resulting in a structure like [1440; 720; 51; 80].
 
-To update the database the workflow looks like:
-1. Download GRIB files of latest run
-2. Transpose spatial oriented data to temporal access
-3. Read existing weekly files
-4. Merge new updated data
-5. Overwrite weekly files
-6. Repeat with next model run
+The process for updating the database is as follows:
 
-In a very simplified way, this is how Open-Meteo stores weather model updates as a continuous time-series. In practice, individual files are not fixed to individual calendar weeks and updating files is quite a challenge considering that some model updates are hundreds of GB in size.
+1. Download the latest GRIB files from the model run.
+2. Transpose the spatially-oriented data for temporal access.
+3. Read the existing weekly files.
+4. Merge the new data with the existing data.
+5. Overwrite the weekly files with the updated data.
+6. Repeat the process for the next model run.
 
-Storing gridded data as time-series optimized weekly files is tailored to the specific use case of time-series APIs that concatenate multiple weather model runs. In future iterations of Open-Meteo, additional data views may be implemented to support different use-cases like spatial access for maps.
+This simplified approach illustrates how Open-Meteo stores weather model updates as a continuous time-series. In practice, however, the files are not strictly tied to individual calendar weeks, and updating them can be complex, particularly when model updates involve hundreds of gigabytes of data.
+
+Storing gridded data as time-series optimized weekly files is specifically designed to support time-series APIs that aggregate multiple weather model runs. Future iterations of Open-Meteo may introduce additional data views to accommodate other use cases, such as spatial access for map generation.
 
 
 ## Open-Meteo custom file format
 
-To store gridded data, Open-Meteo implements its own file format. It is a multi-dimensional chunked array compressed to a single file. This is similar to Zarr, HDF5 or NetCDF. There are 2 major differences why a separate file format was necessary:
+To efficiently store gridded data, Open-Meteo has developed its own custom file format. This format consists of a multi-dimensional chunked array compressed into a single file, similar to formats like Zarr, HDF5, or NetCDF. However, there are two key reasons why a separate file format was necessary:
 
-1. Compression ratio: The underlying compression is highly optimized for weather data. Weather data is low frequency with a high spatial and temporal correlation. By using multi dimensional delta coding and an integer compression scheme with fixed precision (e.g. 0.05K for temperature), compression ratios are significantly higher than any other compression scheme known in the existing file formats. A drawback is that compression is lossy, however precision can be adjusted to preserve any relevant information. Because the amount of data is enormous, this compression ratio is an absolute top priority!
+1. **Compression Ratio:** The compression method used in the Open-Meteo format is highly optimized specifically for weather data, which typically exhibits low frequency with high spatial and temporal correlation. By employing multi-dimensional delta coding and an integer compression scheme with fixed precision (e.g., 0.05K for temperature), this format achieves significantly higher compression ratios than existing file formats. Although the compression is lossy, the precision can be adjusted to preserve any important information. Given the vast amount of data involved, maximizing compression efficiency is a top priority.
 
-2. Performance: Compression speed should exceed 1 GB/s single-threaded. Weather model updates need to be applied as quickly as possible while processing large amounts of data. Because data needs to be read from existing files, merged and compressed again, the size of modified data is more than just the size of a single weather model update. With optimizations for SIMD (AVX2, ARM NEON) Open-Meteo reaches compression and decompression of more than 1 GB/s.
+2. **Performance:** The compression process is designed to exceed speeds of 1 GB/s on a single thread. Since weather model updates must be applied quickly and involve processing large data volumes, the ability to rapidly read from, merge, and recompress data is crucial. With optimizations for SIMD (AVX2, ARM NEON), Open-Meteo can achieve compression and decompression speeds of over 1 GB/s.
 
-Other requirements to store gridded data include (Those are possible with other file formats as well):
+In addition to these primary considerations, the file format also meets other essential requirements for storing gridded data, which are also achievable with other formats:
 
-1. Concurrent access: It must be possible to read from multiple threads efficiently. The file format is very simple and read/write operations can be implemented very efficiently without allocating additional buffers or keeping track of an internal state. This takes full advantage of CPU concurrency while minimizing locks to enable thousands of parallel API calls. Some libraries like HDF5 struggle with concurrency.
+1. **Concurrent Access:** The format supports efficient multi-threaded reading. Its simple design allows read/write operations to be implemented without requiring additional buffers or complex state management, enabling full CPU concurrency with minimal locking. This allows for thousands of parallel API calls, something that can be challenging for other formats like HDF5.
 
-2. Simple / Cloud native: The simple design and chunked data format enables cloud-native access to only partial data of the file. E.g. time-series data from a single coordinate can be read by only downloading the relevant chunks of data instead of the whole file. Currently, no third party libraries exist, but with reasonable amount of effort, libraries for other programming languages can be developed. This is very interesting if the underlying Open-Meteo files should be accessed directly from different systems without using the Open-Meteo APIs. As Open-Meteo is already offering the database files as open-data through AWS open-data, there is an increasingly number of requests to have libraries to read Open-Meteo files.
+2. **Simplicity and Cloud-Native Design:** The straightforward, chunked data structure is well-suited for cloud-native environments, allowing for partial file access. For example, time-series data for a single coordinate can be accessed by downloading only the relevant data chunks, rather than the entire file. Although no third-party libraries currently exist for this format, it is relatively easy to develop such libraries for other programming languages. This is particularly valuable for accessing Open-Meteo files directly from different systems without relying on the Open-Meteo APIs. Given that Open-Meteo already offers its database files as open data via AWS, there is growing interest in developing libraries to read these files.
 
-3. Streaming updates to large amounts of data that exceed the amount of computer memory. By iterating through data, it can be processed in small chunks. E.g. data for ERA5-Land (0.1°) is stored in one file per year with dimensions [3600, 1800, 8760] which would require 211.46 GB of memory as Floating point array (after compression 9.0 GB, 23x compression ratio due to missing values for sea). ERA5 0.25° would require [1444, 720, 8760] => 34 GB of raw floating point array size (4.0GB compressed, 11.3x compression ratio).
+3. **Streaming Updates for Large Datasets:** The format supports streaming updates for datasets that exceed available memory. By processing data in small chunks, large files can be managed efficiently. For instance, ERA5-Land data (0.1° resolution) is stored in yearly files with dimensions [3600, 1800, 8760], which would require 211.46 GB of memory as a floating-point array. After compression, this size is reduced to 9.0 GB, achieving a 23x compression ratio due to missing sea data. ERA5 data at 0.25° resolution would require [1444, 720, 8760] => 34 GB in raw floating-point array size, compressed to 4.0 GB with an 11.3x compression ratio.
 
-4. Single independent files to copy atomically. By using normal files, it is easy copy them to different servers or cloud storages. Because data is updated while being read from, a file copy must be atomic. Some file libraries or database systems store data in files that cannot be copied atomically.
+4. **Atomic File Copies:** The format’s use of standard files allows for easy copying to different servers or cloud storage. Since the data can be updated while being accessed, atomic file copying is essential. Some file libraries or database systems store data in ways that do not support atomic copying, but the Open-Meteo format avoids this issue.
+
+While developing a custom file format may seem like "reinventing the wheel," existing formats did not meet the specific requirements for Open-Meteo, and the effort to create a new format was manageable. This file format has been in use for over two years and has proven to be highly effective. Although further iterations may be needed to improve portability and flexibility, it remains the most viable solution for Open-Meteo's needs.
+
+A technical description of the file format can be found here: [Open-Meteo File Format](https://github.com/open-meteo/open-data?tab=readme-ov-file#file-format)
 
 
-With the Open-Meteo file format, it certainly reinvents the wheel. However, the existing file formats do not fit the requirements and the amount of effort to implement a new file format was not too high. The file format is now in use for over 2 years and works extremely well. It requires some iterations to make it more portable and flexible, but overall it is certainly the only viable approach for Open-Meteo.
+## Processing Data from National Weather Services
 
-A technical description about the file format is available here: https://github.com/open-meteo/open-data?tab=readme-ov-file#file-format
+Over recent years, Open-Meteo has integrated weather models from all major national weather services, along with reanalysis models like ERA5, ERA5-Land, and CERRA, making them available through its time-series API.
 
+Each weather service utilizes its own distribution systems, conventions, and file formats. While most use GRIB or NetCDF formats, the content, naming conventions, structure, projections, available parameters, and forecast horizons vary for each weather model. This diversity makes it challenging to gain a comprehensive overview of the available open data across various national weather services. Open-Meteo addresses this by consolidating all data sources into a unified naming scheme, striving for consistency despite the constant changes introduced with each new model.
 
-## Processing data from NWS
+To manage this diversity, specialized routines for downloading and converting data are implemented for each weather model. The model runs are downloaded as promptly as possible to ensure the most up-to-date forecasts. This process has been refined over the years to handle the substantial data volume efficiently:
 
-Over the past years, Open-Meteo integrated weather models from all major national weather services. Additionally reanalysis models like ERA5, ERA5-Land or CERRA have been downloaded and made available again as time-series API.
+1. **Proactive Downloading:** Download processes begin a few minutes before each model run is expected to be available on the open-data servers. HTTP downloads proactively attempt to access files. If a file is not yet available (error 404), the download is retried every minute until successful. Once available, the downloader uses GRIB index files to minimize the data transferred from the open-data servers.
 
-Every single weather service uses its own distribution system, conventions and different file formats. Most of them due use GRIB or NetCDF, but the content, naming convention, structure, projections, available parameters, forecast horizon is different for each weather model. It is very challenging to get a good overview of all available open-data from various national weather services. Open-Meteo combines all data sources into a new naming scheme and tries to keep it consistent as possible, but of course it is constantly changing with each new model.
+2. **Simultaneous Transfer and Processing:** GRIB files are transferred and processed simultaneously. Initially, Open-Meteo saved files to disk before processing them with eccodes, which was time-consuming and required significant disk space and memory. Now, as GRIB files contain multiple messages, the download is streamed, and each message is processed immediately after receipt. This allows for processing incoming GRIB streams at speeds exceeding 100 MB/s, with current limitations primarily due to network speed. This optimization ensures timely processing of large GRIB files while managing network bandwidth to avoid overloading the open-data servers.
 
-For each weather model, specialized download and conversion routines are implemented. Model runs are downloaded as timely as possible to provide the most up to date forecast. Due to the amount of data for each update, this process has been optimized over the years:
+3. **Data Transposition:** Since data is downloaded as spatial files with a two-dimensional array for each timestep, it is then transposed for time-series access. This transposition is done in chunks to efficiently handle large volumes of data.
 
-1. Downloader are started a couple of minutes before each run should be available on the open-data servers. HTTP downloads pro-actively try to download files. If the file is not yet available (error 404), it will be retried in minute. If available, the downloader use GRIB index file to reduce the amount of data transferred from open-data servers.
+4. **Derived Variables and Interpolation:** Depending on the model, derived weather variables are calculated as needed (e.g., estimating low/mid/high cloud cover from pressure level relative humidity). Aggregations, such as cumulative precipitation, are resolved into hourly precipitation values. Additionally, if the data's temporal resolution shifts mid-forecast (e.g., from 1-hourly to 3 or 6-hourly), all data is interpolated to a consistent 1-hourly resolution. This includes solar radiation de-averaging, which accounts for the solar zenith angle during interpolation.
 
-2. GRIB files are transferred and processed at the same time. Initially, Open-Meteo downloaded files do disk and then processed them using eccodes. This took too long and requires disk space and more memory. Because GRIB files contain multiple messages, the download is done streaming and after each message was received it is directly processed. This enables to process an incoming GRIB stream of >100 MB/s per second. Right now it is mostly limited by network speed and larger volumes of GRIB files can be processed timely. Open-Meteo keeps network bandwidth to reasonable levels to not overload open-data servers.
+5. **Updating the Time-Series Database:** The time-series database, containing existing weekly files, is updated. Data downloading and processing occur concurrently across all available CPU cores. Updates are executed in chunks, requiring minimal system memory despite processing hundreds of gigabytes of data.
+Optional Database Upload: The updated Open-Meteo database can be optionally uploaded to S3-compatible storage. By default, the Open-Meteo database is stored locally in a single directory, ./data.
 
-3. Because data is downloaded as spatial files with a 2-dimensional array for each timestep, data is then transposed to time-series access. The data transposition is done in chunks to efficiently work on large amount of data.
-
-4. Depending on the model, derived weather variables are calculated if required (e.g. Pressure level relative humidity is used to estimate low/mid/high cloud cover). Aggregations like cumulative precipitation are resolved to precipitation per hour. Additionally, if data is changing temporal resolution from 1-hourly to 3 or 6-hourly in the middle the forecast, all data is interpolated to 1-hourly. This includes interpolations to deaverage solar radiation while considering the solar zenith angle. 
-
-5. Finally, the time-series database containing existing weekly files is updated. Data downloading and processing is performed concurrently on all available CPU cores. Updates are performed in chunks and require low amounts of system memory although hundreds of gigabyte of data are processed.
-
-6. Optionally, the updated Open-Meteo database is uploaded to a S3 compatibly storage. Per default, the Open-Meteo database is just a single directory `./data` on a local hard disk.
-
-All downloader are implemented in the open-source code of Open-Meteo. Prebuilt binaries are available for Ubuntu alongside Docker images. Downloading a single model run of ECMWF 0.25° and updating the Open-Meteo database is reduced to a single command on the terminal:
+All downloaders are implemented in Open-Meteo's open-source code. Prebuilt binaries are available for Ubuntu, along with Docker images. Downloading a single ECMWF 0.25° model run and updating the Open-Meteo database can be accomplished with a single terminal command:
 
 ```bash
 openmeteo-api download-ecmwf --domain ifs025 --run 2024090100 --concurrent 4 --only-variables temperature_2m,precipitation --server https://data.ecmwf.int/forecasts/
 ```
 
-This particular downloader is optimized for the open-data distribution from ECMWF IFS 0.25 and downloads data from the specified server. However, the data source could local directory with GRIB files as well. Addtional datasets and workflows can be implemented quickly. A current list of all implemented weather models can be found here: https://github.com/open-meteo/open-data
+This downloader is optimized for ECMWF IFS 0.25° open-data distribution and downloads data from the specified server. However, it can also work with local directories containing GRIB files. Additional datasets and workflows can be implemented quickly. A current list of all integrated weather models can be found here: [Open-Meteo Open-Data GitHub](https://github.com/open-meteo/open-data).
 
-As of September 2024, Open-Meteo downloads and processes 2.8 TB of GRIB / NetCDF files per day. A time-series of th past 90 days of all weather forecast models requires roughly 1.8 TB of storage.
+As of September 2024, Open-Meteo downloads and processes 2.8 TB of GRIB/NetCDF files daily. Maintaining a time series of the past 90 days for all weather forecast models requires approximately 1.8 TB of storage.
 
-The list of additional datasets and weather models is virtually endless. Next on the list are:
+The potential for adding new datasets and weather models is virtually limitless. Upcoming additions include:
 - NOAA NBM and RRFS
 - Satellite radiation datasets (SARAH3, MeteoSat)
 - Radar datasets (DWD Radolan, OPERA)
 
 
+## Open-Meteo Database
 
-## Open-Meteo database
+Open-Meteo organizes its data into files using a straightforward directory structure. Each weather model has its own directory, within which there are subdirectories for each weather variable. These subdirectories contain files that typically hold 1-2 weeks of data.
 
-Open-Meteo stores all data as files following a simple directory structure. One directory for the weather model name, followed one directory for each weather variable. Each variable contains than files which contains 1-2 weeks of data.
-
-The database can also be accessed on AWS S3 Open-Data: https://openmeteo.s3.amazonaws.com/index.html#data/
+The database is also accessible via AWS S3 Open-Data: [Open-Meteo S3](https://openmeteo.s3.amazonaws.com/index.html#data/).
 
 ```
 data/ecmwf_ifs025/temperature_2m
@@ -164,7 +173,7 @@ data/dwd_icon_d2/precipitation
 |- chunk_18636.om
 ```
 
-For reanalysis datasets, file span entire years. They are still accompanied by weekly files for daily updates because updating only a single day inside a 365 day block of data is rather inefficient. 
+For reanalysis datasets, files span entire years. However, they are also supplemented with weekly files for daily updates, as updating just a single day within a 365-day data block would be highly inefficient.
 
 ```
 data/copernicus_era5/temperature_2m
@@ -174,51 +183,52 @@ data/copernicus_era5/temperature_2m
 |- chunk_950.om
 ```
 
-The chunk-number is just the unix-timestamp divided by a time-interval of 1-2 weeks. It is trivial to figure out which files need to be read read.
+The chunk number is simply the Unix timestamp divided by a time interval of 1-2 weeks, making it easy to determine which files need to be accessed.
 
-The total size of the Open-Meteo database spans around 41 TB. Compression ratio is approximately 5 times better than GRIB, therefore the archives are equivalent to ~200 TB of GRIB files:
-- 16 TB for common variables from ERA5, ERA5-Land, CERRA and archived ECMWF IFS HRES
-- 23 TB for continuous archives of all weather forecast models keeping different lead-times
-- 2 TB archives for various models air quality, floods, waves, etc
+The Open-Meteo database currently spans approximately 41 TB. With a compression ratio about five times more efficient than GRIB, this equates to roughly 200 TB of GRIB files:
+- 16 TB for common variables from ERA5, ERA5-Land, CERRA, and archived ECMWF IFS HRES.
+- 23 TB for continuous archives of all weather forecast models, preserving different lead times.
+- 2 TB for archives of various models, including air quality, floods, and waves.
 
-Because the entire database is just a collection files and directories, it can just be copied by standard tools and exposed via any simple HTTP server or S3 compatible server.
+Since the entire database consists of simple files and directories, it can be copied using standard tools and served via any basic HTTP server or S3-compatible service.
 
-By exposing the Open-Meteo database directly through an HTTP server or S3 bucket, users can
-1. Run their own Open-Meteo API instances and synchronize automatically the latest forecast or
-2. Retrieve data directly from files to perform data analysis in Python once the Python library for open-meteo files is available
+By hosting the Open-Meteo database on an HTTP server or S3 bucket, users can:
 
+1. Run their own Open-Meteo API instances, automatically syncing with the latest forecasts.
+2. Retrieve data directly from the files for analysis in Python, once the Python library for Open-Meteo files is available.
 
 ## HTTP Rest APIs
-To efficiently serve weather data to a wide audience of users, data can be exposed as a HTTP JSON API.
+To efficiently deliver weather data to a broad audience, Open-Meteo offers an HTTP JSON API.
 
-Data for individual coordinates can be requested by a simple URL query `/v1/forecast?latitude=47.45&longitude=8.56` followed by a list of weather variables like `&hourly=temperature_2m,precipitation` which returns a weather forecast in JSON format for the next 7 days in 1-hourly resolution. 
+Users can request data for specific coordinates with a simple URL query, such as `/v1/forecast?latitude=47.45&longitude=8.56`, followed by a list of weather variables like `&hourly=temperature_2m,precipitation`. This returns a 7-day weather forecast in JSON format with hourly resolution.
 
-In order to provide a good forecast, Open-Meteo performs a couple of steps:
-1. The best weather models for the given coordinates are selected. High resolution local domains like ICON-D2, AROME or HRRR are combined seamlessly with their global parent domains like ICON, ARPEGE or GFS. Therefore the first couple of hours might be from a local area model, while the mid-term forecast is based on a global model. The model selection process can be overruled by simply adding `&models=ecmwf_ifs025` to force a specific model.
 
-2. A suitable grid-cell is selected for the coordinated. Various grid systems and projections are supported to quickly find the corresponding grid-cell for coordinates. By using a digital elevation model, the surface elevations from the desired coordinate as well as surrounding grid-cells are compared. Sometimes not the nearest grid-cell provides a best forecast for a given location. In coastal areas, grid-cells on sea are avoided.
-
-3. If required, data is interpolated from 3-hourly to 1-hourly data. Most weather models offer 1-hourly data. As a convention only 1-hourly data is returned. Of course the user can choose the temporal resolution as well.
-
-3. Derived parameters are calculated. E.g. wind speed is computed from U/V vectors. More complex models are also integrated like FAO Reference Evapotranspiration (ET₀), Direct Normal Irradiance (DNI) or directly compute the tilted solar irradiance. All solar radiation calculations are using the NREL solar position algorithms which is reportedly have the highest accuracy. Those models were frequently requested by users from renewable energy or agriculture sectors.
-
-4. The API response as JSON (or other formats) is streamed back to the user. The response could return large amounts of data that do not fit into memory. By streaming data into chunks, the API can return large amounts of data without the need for complex job queuing systems.
-
-5. Optionally, an API key is checked to verify that a user is authorized to access data. Open-Meteo limits access to the free API and blocks access after 10'000 calls per day. Commercial users can retrieve more data, but require an API key.
-
-The Open-Meteo API is not limited to single coordinates. Other options are:
-1. Multiple coordinates by supplying a comma separated list. E.g. `&latitude=47.45,48.1,49.23&longitude=8.56,8.34,8.43`. Limited to 1000 locations.
-
-2. Bounding boxes to get data for a geographic area. `&bounding_box=47,-85,47.5,-84.5`. Currently this is limited to roughly 1000 grid-cells.
-
-Future API features:
-1. Maps API: More and more users are asking to get data for large areas to generate map. Open-Meteo is optimized for time-series data, therefore maps are a worst-case usage. So far we recommend GRIB files for maps, but users have issues processing data. It would be nice to have a simple endpoint to get data for large areas to generate maps.
-
-2. Cloud native mode: The API requires that the database is available locally. This is important to the best performance to serve weather data within milliseconds. However, due to the growing size of the Open-Meteo database, it can be challenging to deploy server with large local disk storage. A cloud native mode should enable the API to fetch data on demand from an S3 server containing all Open-Meteo files. By keeping important data in a local cache, this can provide reasonable performance while making it very easy to deploy more Open-Meteo API nodes.
+Open-Meteo follows several steps to provide accurate forecasts:
 
 
 
-The API is distributed as Ubuntu packages and Docker images as well. The HTTP server endpoint can be started with a single command:
+
+Open-Meteo follows several steps to provide accurate forecasts:
+
+1. **Model Selection:** The API selects the best weather models for the given coordinates, seamlessly combining high-resolution local models like ICON-D2, AROME, or HRRR with their global counterparts like ICON, ARPEGE, or GFS. For example, the first few hours may use data from a local model, while the mid-term forecast relies on a global model. Users can override this selection by specifying a particular model using &models=ecmwf_ifs025.
+2. **Grid-Cell Selection:** The API identifies the most suitable grid-cell for the specified coordinates. Various grid systems and projections are supported to quickly locate the corresponding grid-cell. A digital elevation model compares the surface elevation of the desired coordinates with surrounding grid-cells, ensuring that the best grid-cell is chosen, especially in coastal regions where cells over the sea are avoided.
+3. **Data Interpolation:** If necessary, the API interpolates data from 3-hourly to 1-hourly intervals. While most models offer 1-hourly data, the API conventionally returns 1-hourly data, although users can select a different temporal resolution.
+4. **Derived Parameters:** The API calculates derived weather parameters, such as wind speed from U/V vectors. It also integrates more complex models, like FAO Reference Evapotranspiration (ET₀) and Direct Normal Irradiance (DNI), using highly accurate NREL solar position algorithms. These calculations are particularly valuable for users in the renewable energy and agriculture sectors.
+5. **Data Streaming:** The API response, typically in JSON format, is streamed back to the user. To handle potentially large datasets that exceed memory limits, data is streamed in chunks, allowing the API to deliver extensive data without requiring a complex job queuing system.
+6. **API Key Verification:** An optional API key check ensures users are authorized to access the data. Free API access is capped at 500 calls per minute or 10,000 calls per day, with commercial users requiring an API key for additional data access.
+
+The Open-Meteo API also supports additional options:
+
+1. **Multiple Coordinates:** Users can request data for multiple locations by supplying a comma-separated list of coordinates, e.g., &latitude=47.45,48.1,49.23&longitude=8.56,8.34,8.43, limited to 1,000 locations.
+2. **Bounding Boxes:** Data can be retrieved for a specific geographic area using bounding boxes, e.g., &bounding_box=47,-85,47.5,-84.5, with a current limit of approximately 1,000 grid-cells.
+
+
+Future API Features:
+2. **Maps API:** As user demand grows for data covering large areas to generate maps, Open-Meteo plans to develop a dedicated endpoint for this purpose. Although the API is optimized for time-series data, and map generation is a challenging use case, a simplified endpoint could facilitate map creation.
+3. 
+4. **Cloud-Native Mode:** Currently, the API requires local access to the database for optimal performance, serving weather data within milliseconds. However, as the Open-Meteo database continues to expand, deploying servers with large local storage becomes increasingly challenging. A cloud-native mode would enable the API to fetch data on demand from an S3 server hosting the Open-Meteo files. By maintaining a local cache of essential data, this approach could balance performance with ease of deployment for additional API nodes.
+
+The Open-Meteo API is available as Ubuntu packages and Docker images. The HTTP server endpoint can be launched with a single command.
 
 ```bash
 openmeteo-api serve

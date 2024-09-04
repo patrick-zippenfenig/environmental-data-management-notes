@@ -96,11 +96,6 @@ Other requirements to store gridded data include (Those are possible with other 
 
 With the Open-Meteo file format, it certainly reinvents the wheel. However, the existing file formats do not fit the requirements and the amount of effort to implement a new file format was not too high. The file format is now in use for over 2 years and works extremely well. It requires some iterations to make it more portable and flexible, but overall it is certainly the only viable approach for Open-Meteo.
 
-The next revision of the Open-Meteo file format should mainly address:
-- Python library with support for sync, sans IO, S3 cloud native, integrations with XArray
-- JavaScript client with compression done in WebAssembly. This can enable efficient client side maps visualizations.
-- Potability to support various data dimensions and data types
-
 A technical description about the file format is available here: https://github.com/open-meteo/open-data?tab=readme-ov-file#file-format
 
 
@@ -263,7 +258,9 @@ By dividing processing to many instances, this makes it easier to scale and add 
 ### Central S3 storage 
 Each instance maintains its own Open-Meteo database for its weather models and after each update synchronizes data on a central S3 storage. 
 
-This S3 storage can be an AWS S3 bucket, but any S3 like service works. The Open-Meteo API actually contains its own S3 server implementation and no third party software is required. However, a proper S3 storage is recommended to scale the service.
+This S3 storage can be an AWS S3 bucket, but any S3 like service works. The Open-Meteo API actually contains its own S3 server implementation and no third party software is required. 
+
+However, a proper S3 storage is recommended to scale the service. This can be AWS S3, but other S3 compatible storage systems work as well.
 
 ### API Nodes
 
@@ -284,8 +281,8 @@ Open-Meteo uses multiple dedicated servers with a load-balancer to serve data. E
 
 Below are approximately sizes how much storage an individual weather model requires with 90 days past data and forecast. Some models include pressure level variables which increase size significantly.
 
-| Size | Model                     |
-|------|------------------------------------|
+| Size | Model                              |
+| ---- | ---------------------------------- |
 | 99G  | bom_access_global                  |
 | 117G | cma_grapes_global                  |
 | 58G  | cmc_gem_gdps                       |
@@ -321,44 +318,136 @@ Below are approximately sizes how much storage an individual weather model requi
 
 If historical weather forecast and reanalysis data is stored as well, more space is required. As of 2024-09-03 the database size is:
 
+| Size | Model                              |
+| ---- | ---------------------------------- |
+| 12G  | arpae_cosmo_2i                     |
+| 3.1G | arpae_cosmo_2i_ruc                 |
+| 27G  | arpae_cosmo_5m                     |
+| 1.1T | bom_access_global                  |
+| 17G  | cams_europe                        |
+| 21G  | cams_global                        |
+| 999G | cma_grapes_global                  |
+| 717G | cmc_gem_gdps                       |
+| 1.3T | cmc_gem_hrdps                      |
+| 400G | cmc_gem_rdps                       |
+| 171G | cmip_CMCC_CM2_VHR4                 |
+| 125G | cmip_EC_Earth3P_HR                 |
+| 174G | cmip_FGOALS_f3_H                   |
+| 183G | cmip_HiRAM_SIT_HR                  |
+| 67G  | cmip_MPI_ESM1_2_XR                 |
+| 354G | cmip_MRI_AGCM3_2_S                 |
+| 181G | cmip_NICAM16_8S                    |
+| 2.2T | copernicus_cerra                   |
+| 9.4G | copernicus_dem90                   |
+| 5.1T | copernicus_era5                    |
+| 908G | copernicus_era5_ensemble           |
+| 2.9T | copernicus_era5_land               |
+| 90G  | copernicus_era5_ocean              |
+| 130G | dmi_harmonie_arome_europe          |
+| 13G  | dwd_ewam                           |
+| 15G  | dwd_gwam                           |
+| 2.1T | dwd_icon                           |
+| 262G | dwd_icon_d2                        |
+| 82G  | dwd_icon_d2_15min                  |
+| 496G | dwd_icon_eu                        |
+| 51G  | ecmwf_aifs025                      |
+| 3.6T | ecmwf_ifs                          |
+| 154G | ecmwf_ifs025                       |
+| 69G  | ecmwf_ifs04                        |
+| 127G | ecmwf_ifs_analysis_long_window     |
+| 848M | ecmwf_wam025                       |
+| 17G  | glofas_forecast_v3                 |
+| 70G  | glofas_forecast_v4                 |
+| 161G | jma_gsm                            |
+| 111G | jma_msm                            |
+| 16G  | knmi_harmonie_arome_europe         |
+| 5.8G | knmi_harmonie_arome_netherlands    |
+| 89G  | meteofrance_arome_france           |
+| 210G | meteofrance_arome_france0025       |
+| 53G  | meteofrance_arome_france0025_15min |
+| 286G | meteofrance_arome_france_hd        |
+| 72G  | meteofrance_arome_france_hd_15min  |
+| 218G | meteofrance_arpege_europe          |
+| 28G  | meteofrance_arpege_world           |
+| 363G | meteofrance_arpege_world025        |
+| 57G  | meteofrance_currents               |
+| 155G | meteofrance_wave                   |
+| 205G | metno_nordic_pp                    |
+| 27G  | nasa_imerg_daily                   |
+| 9.4G | ncep_cfsv2                         |
+| 1.8T | ncep_gfs013                        |
+| 3.7T | ncep_gfs025                        |
+| 50G  | ncep_gfs_graphcast025              |
+| 3.8T | ncep_hrrr_conus                    |
+| 287G | ncep_hrrr_conus_15min              |
+| 1.1T | ukmo_global_deterministic_10km     |
+| 251G | ukmo_uk_deterministic_2km          |
+
 
 Ensemble models with 14 days past data: (Note: Ensemble models are not archived, yet)
 
-| Size | Model                     |
-|------|------------------------------------|
-| 19G  | bom_access_global_ensemble          |
-| 14G  | cmc_gem_geps                        |
-| 71G  | dwd_icon_d2_eps                     |
-| 114G | dwd_icon_eps                        |
-| 27G  | dwd_icon_eu_eps                     |
-| 193G | ecmwf_ifs025_ensemble               |
-| 60G  | ecmwf_ifs04_ensemble                |
-| 51G  | ncep_gefs025                        |
-| 71G  | ncep_gefs05                         |
+| Size | Model                      |
+| ---- | -------------------------- |
+| 19G  | bom_access_global_ensemble |
+| 14G  | cmc_gem_geps               |
+| 71G  | dwd_icon_d2_eps            |
+| 114G | dwd_icon_eps               |
+| 27G  | dwd_icon_eu_eps            |
+| 193G | ecmwf_ifs025_ensemble      |
+| 60G  | ecmwf_ifs04_ensemble       |
+| 51G  | ncep_gefs025               |
+| 71G  | ncep_gefs05                |
 
 
 ## Cloud Native Python Library
 
-Currently, users can only retrieve data from via a JSON API. The API can then efficiently return a small subset of data and the client only get the amount of data he actually needs. The client also does not require a processing power which is ideal for low power systems or handhelds.
+Currently, users can only retrieve data from via a JSON API. The API can then efficiently return a small subset of data and the client only get the amount of data he actually needs. The client also does not require a processing power which is ideal for low power systems or handhelds and by using JSON data can be used with any programming language.
 
-For some use cases like machine learning it can be useful to process nearly all data. Going through an API can be cumbersome. The client also has sufficient processing capabilities to work with larger amounts of data. In this case a cloud native approach can be ideal.
+For some use cases like machine learning, climate or risk analysis it can be useful to process nearly all data. Going through an API can be cumbersome. The client also has sufficient processing capabilities to work with larger amounts of data. In this case a cloud native approach can be ideal.
 
-The client could directly fetch the required data from the Open-Meteo files on S3.  
+The client could directly fetch the required data from the Open-Meteo files on S3. Due to the design of the OM files, individual parts of the file can be accessed without instead of downloading the entire file.
 
+![Cloud native](./images/api_and_cloud_native.png)
 
+A use-case could be to analyse temperature anomalies change over the past 10 years for a country using ERA5-Land. Using OM files, one year of temperature data in ERA5-Land at 0.1° resolution is 9.0 GB. With 10 years, 90 GB of data would be required to download in order to run the analysis. However, using a cloud native approach, only data covering the selected country can be analysed. This could reduce size from 90 GB to 1-2 GB. 
 
+To efficiently run analysis using cloud native files on S3, the underlaying library needs to be well designed:
 
+1. Caching: Data needs to be cached on the client in order to re-run an analysis. This must be the default. Analysing data is not easy and while developing, the programm needs to be re-run many times before the desired output is achieved. If data would be downloaded again and again, this would take time and create undesired cost for bandwidth. This also frees up the burden of the user to implement his own cache.
 
-Currently only libraries to interact with API. 
+2. Concurrent and asynchronous: Downloads must be capable for running in parallel and using multiple threads to decompress data. The `async` pattern should be used to download files. Downloads should be done in chunks and align with the underlaying storage system. If I recall correctly AWS S3 uses chunks of 16 MB. By splitting downloads in 16 MB blocks, much higher throughput can be achieved.
 
-Work in progress:
-- Make file format more generic
-- Client libraries for python, etc
+3. Performance: The Open-Meteo files take advantage of CPU vector instructions to encode and decode data. This should be enabled on the Python client as well. 
 
-Direct access to files on S3 storage. Local cache. Enable users to run analysis without worrying about data transfer, etc. Strict backwards compatibility.
+4. Stable APIs: Because users are now interactting directly with program APIs, they most remain stable to not break future source code compatibility.
 
-Other languages like Javascript, WASM, R, Julia, Rust, Swift, etc
+5. Integations: The library should work well with Xarray, Numpy or Pandas.
 
-Make file format usable in different sectors as well. Areas to improve global metadata schema and standards.
+Lastly, the Open-Meteo file format could also proof usefull for other applications as well. The multi-dimensional data-chunking and compression format could be an efficient storage format for other data. This is only possible with a stable Python client library.
 
-Users still have to option to download, store and archive the whole file.
+The Open-Meteo Cloud native Python library is in early development with a small PoC protoype available. Open-Meteo would like to continue this development in Q4 2024 and Q1 2025.
+
+## Libraries for additional programming lanauges
+
+Although the Python is the most popular programming languages for data scientists and most use-cases with climate and weather data can be handled with Python, libraries for other programming languages can be interesting. 
+
+A Open-Meteo Cloud native client library for JavaScript could enable web-applications to load large datasets and generate maps directly on the client. Generating maps is resource intensive of done server-side. A map can be orders of magintude larger than the raw numeric weather data and rendering images on the server is CPU intensive. 
+
+Ideally, the library should use WebAssembly to also take full advantage of vector instructions for decompress data on the client quickly. 
+
+Libraries for other programming languages are an option as well. 
+
+## The road ahead
+
+The amout of open-data is constantly increasing and increasing the burden of national insitutes to supply offer data public domain. Cost for open-data distribution in form of storage, bandwidth and computing resources can be a releavant factor. Although prices for storage and compute are dropping, the cost for storage did not drop as much in the past 10 years compared to the amount of produced data.
+
+On the other hand, more and more users are using open-data environmental which significantly increased in volumne as well as quality. This data is nowadays essential for research and commercial applications. Although increase is nice to see, it further causes issues for open-data distributions.
+
+Over the course of a bit more than 2 years, Open-Meteo integrated all major weather forecast models and scaled a public weather API to serve up to 100 million forecasts per day to users all over the world. Hopefully having a helpful impact on reducing the amount of data that retrieved directly from national weather services otherwise. 
+
+Beginning of 2024 the underlaying Open-Meteo database has been made public through an AWS open-data sponsorship and sparked interest in the Python data science community to not only access weather data through an API, but also use the open-meteo database directly. It provides a good overview available weahter data from multiple sources and enables fast access for a variety of use-cases. 
+
+Open-Meteo would like to continue the current trajetory and integrate a broader spectrum of open-data environmental datasets and make data more accessible to the public. This is not limited to weather forecast or reanalysis models, but can be expanded to climate models, satellite, radar and other environmental data seamlessly.
+
+To achieve it, Open-Meteo could ideally collaborate with national weather services directly to improve efficiency and flexbility of the open-data distributions and as well provide a new standardized way of storing and accessing weather data throughout different weather services.
+

@@ -1,4 +1,4 @@
-# Transforming Environmental Data Access: Open-Meteo's Approach to Scalable Data Solutions
+# Transforming Environmental Data Access: Open-Meteo's Approach to Distribute Weather Forecasts
 
 ## TL;DR
 
@@ -10,7 +10,9 @@ With the Open-Meteo database now available publicly through AWS open data sponso
 
 The availability of open environmental data has grown exponentially, reaching levels that would have been unimaginable just a decade ago. National Weather Prediction (NWP) systems are increasingly offering open-access data, including high-resolution models that cover both global and local areas. However, as the volume of this data expands, accessing and using it efficiently is becoming increasingly challenging.
 
-Open-Meteo aims to address these challenges by revolutionizing the way weather forecasts and reanalysis data are distributed and accessed. As a fully open-source platform, Open-Meteo provides streamlined access to environmental data through fast and user-friendly APIs. These services are open for non-commercial and research purposes and integrate models from the leading NWPs across Europe, North America, and Asia.
+Open-Meteo aims to address these challenges by revolutionizing the way weather forecasts and reanalysis data are distributed and accessed. Open-Meteo provides streamlined access to environmental data through fast and user-friendly APIs. These services are open for non-commercial and research purposes and integrate models from the leading NWPs across Europe, North America, and Asia.
+
+Open-Meteo is an open-source project, developed by a Swiss sole proprietorship company `Zippenfenig OpenMeteo` funded by Patrick Zippenfenig in August 2022.
 
 This paper outlines the strategies employed by Open-Meteo to manage large-scale environmental data, describes its operational mechanics, and discusses future directions for Open-Meteo and other entities that handle environmental datasets.
 
@@ -18,23 +20,29 @@ This paper outlines the strategies employed by Open-Meteo to manage large-scale 
 
 Managing environmental data, such as weather forecasts, reanalysis, and satellite data, presents significant challenges for end users. These challenges are particularly pronounced in the following areas:
 
-1. **Data Volume and Accessibility:** The sheer volume of environmental data is immense and continues to grow. Users often require only a small subset of this data, but are forced to download and process vast amounts—sometimes hundreds of gigabytes of GRIB files—just to extract the information they need. This not only results in substantial data download times time but also leads to the inefficient use of resources, as up to 99% of the downloaded and processed data may be discarded. For instance, downloading ERA5 data for a single location can take anywhere from three to six months, underscoring the time-consuming nature of this process.
+1. **Data Volume and Accessibility:** The volume of environmental data is immense and continues to grow. Users often require only a small subset of this data, but are forced to download and process vast amounts — sometimes hundreds of gigabytes of GRIB files — just to extract the information they need. This not only results in substantial data download times time but also leads to the inefficient use of resources, as up to 99% of the downloaded and processed data may be discarded. For instance, downloading ERA5 data can take anywhere from three to six months, underscoring the time-consuming nature of this process.
 
-2. **Complexity of Data Usage:** The use of environmental data is complicated by various factors, such as the GRIB file format, varying data projections, and irregular temporal resolutions (e.g., data jumps from 1-hour to 3-hour to 6-hour intervals). Accurately processing this data to derive commonly used variables, such as reference evapotranspiration (ET0) or direct normal irradiance (DNI), is a daunting task for less experienced users.
+2. **Complexity of Data Usage:** The use of environmental data is complicated by various factors, such as the GRIB file format, varying data projections, irregular temporal resolutions (e.g., data jumps from 1-hour to 3-hour to 6-hour intervals) and different data distribution systems. Accurately processing this data to derive commonly used variables, such as reference evapotranspiration (ET0) or direct normal irradiance (DNI), is a daunting task for less experienced users.
 
 3. **Diverse File Formats and Standards:** Environmental data is provided in numerous file formats and follows different standards, naming conventions, distribution systems and file formats. There is no universal solution to accommodate this diversity, making it time-consuming for users to familiarize themselves with the specific data offerings of each NWP. Furthermore, discovering available data can be a challenge due to the absence of a centralized catalog.
 
-4. **Complex Integrations:** To effectively use weather data, users must navigate a complex ecosystem of libraries and tools to download, store, and process data on their local systems. This includes working with various projections to determine coordinates and addressing practical challenges, such as the inability to load an entire dataset data into memory. E.g. One year of ERA5-Land temperature requires `211 GB` memory.
+4. **Complex Integrations:** To effectively use weather data, users must navigate a complex ecosystem of libraries and tools to download, store, and process data on their local systems. This includes working with various projections to determine coordinates and addressing practical challenges, such as the inability to load an entire dataset data into memory. E.g. One year of ERA5-Land temperature data requires `211 GB` memory.
 
-By addressing these challenges, Open-Meteo aim to democratize access to environmental data, making it easier and more efficient for users to engage with this critical information. The following sections will delve into the specific methods and technologies employed by Open-Meteo to overcome these obstacles and outline the anticipated advancements in this field.
+By addressing these challenges, Open-Meteo aim to democratize access to environmental data, making it easier and more efficient for users to engage with this critical information. At the same time, as a small, independent organization, Open-Meteo must also be resource-conscious in its approach.
+
+The following sections will delve into the specific methods and technologies employed by Open-Meteo to overcome these obstacles and outline the anticipated advancements in this field.
 
 
-## The Current Open-Meteo Approach
-Open-Meteo represents an incremental yet significant step forward in making environmental data more accessible, transparent, and faster to retrieve. However, it does not yet address all the challenges associated with environmental data management. Presently, Open-Meteo provides simple HTTP APIs that allow users to retrieve a limited subset of weather data for specific locations.
+## What Open-Meteo is doing
+Open-Meteo focuses on providing time-series data through a user-friendly JSON API for specific coordinates, diverging from the traditional GRIB file method of storing and distributing environmental data. The APIs are designed for ease of use, speed, scalability, and reliability, with no single points of failure.
 
-The primary focus of Open-Meteo is on delivering time-series data for specific coordinates, which contrasts with the traditional method of storing and distributing environmental data. Weather model outputs are continuously ingested into a time-series database, enabling users to not only access the latest model forecasts but also seamlessly retrieve historical data from past model runs. This allows users to obtain weather forecasts that include updates from multiple model runs (e.g., 0z, 6z, and 12z) and to access historical data spanning weeks, months, or even years.
+The underlying weather database is optimized for efficiency, employing advanced compression techniques to reduce storage size while ensuring quick data access. Its compact storage, efficient indexing, and modular structure enable rapid retrieval and seamless updates for each new weather model run. The database features plain compressed files that are distributed via S3 storage.
+
+All major national weather services' models are continuously integrated into this time-series database, allowing users to access the latest forecasts and historical data from multiple model runs (e.g., 0z, 6z, 12z) spanning weeks, months, or even years.
 
 The database's capabilities extend beyond just weather forecast models; it also includes reanalysis data such as ERA5 and ERA5-Land. Users can access over 80 years of hourly data for a single location in less than 100 milliseconds, thanks to the efficient data storage and performance optimization tailored for this use case.
+
+A central catalog details all weather models, offering users a quick overview of available data from various providers. Users can explore [weather forecasts](https://open-meteo.com/en/docs) and [historical weather data](https://open-meteo.com/en/docs/historical-weather-api).
 
 
 ### What Users Can Access:
@@ -60,7 +68,7 @@ At present, it is not possible to access forecasts for larger areas, such as ent
 
 GRIB files are effective for storing large fields corresponding to single time steps of individual variables, offering reasonably good compression. However, to access data for a specific location or small area, the entire field must be decoded. When multiple GRIB messages are concatenated in a single file, an index file is required to access individual parameters, further complicating on-demand access to GRIB files.
 
-To efficiently serve weather data through an API, the underlying database must be optimized for ingesting large volumes of data and for retrieving small, specific portions—preferably as time-series data.
+To efficiently serve weather data through an API, the underlying database must be optimized for ingesting large volumes of data and for retrieving small, specific portions — preferably as time-series data.
 
 A practical solution involves structuring weather data into multidimensional arrays, transposing the data for quick time access, and storing it in formats like NetCDF, Zarr, or HDF5. The data should be chunked (e.g., 50 grid points x 50 time steps) and compressed using formats such as gzip, zstd, blosc, lz4, among others.
 

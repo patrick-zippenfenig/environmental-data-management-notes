@@ -101,7 +101,7 @@ In addition to these primary considerations, the file format also meets other es
 
 2. **Simplicity and Cloud-Native Design:** The straightforward, chunked data structure is well-suited for cloud-native environments, allowing for partial file access. For example, time-series data for a single coordinate can be accessed by downloading only the relevant data chunks, rather than the entire file. Although no third-party libraries currently exist for this format, it is relatively easy to develop such libraries for other programming languages. This is particularly valuable for accessing Open-Meteo files directly from different systems without relying on the Open-Meteo APIs. Given that Open-Meteo already offers its database files as open data via AWS, there is growing interest in developing libraries to read these files.
 
-3. **Streaming Updates for Large Datasets:** The format supports streaming updates for datasets that exceed available memory. By processing data in small chunks, large files can be managed efficiently. For instance, ERA5-Land data (0.1° resolution) is stored in yearly files with dimensions [3600, 1800, 8760], which would require 211.46 GB of memory as a floating-point array. After compression, this size is reduced to 9.0 GB, achieving a 23x compression ratio due to missing sea data. ERA5 data at 0.25° resolution would require [1444, 720, 8760] => 34 GB in raw floating-point array size, compressed to 4.0 GB with an 11.3x compression ratio.
+3. **Streaming Updates for Large Datasets:** The format supports streaming updates for datasets that exceed available memory. By processing data in small chunks, large files can be managed efficiently. For instance, ERA5-Land data (0.1° resolution) is stored in yearly files with dimensions [3600, 1800, 8760], which would require 211.46 GB of memory as a floating-point array. After compression, this size is reduced to 9.0 GB, achieving a 23x compression ratio due to missing sea data. ERA5 data at 0.25° resolution would require [1440, 720, 8760] => 34 GB in raw floating-point array size, compressed to 4.0 GB with an 11.3x compression ratio.
 
 4. **Atomic File Copies:** The format’s use of standard files allows for easy copying to different servers or cloud storage. Since the data can be updated while being accessed, atomic file copying is essential. Some file libraries or database systems store data in ways that do not support atomic copying, but the Open-Meteo format avoids this issue.
 
@@ -235,34 +235,39 @@ openmeteo-api serve
 # [ NOTICE ] Server started on http://0.0.0.0:8080
 ```
 
-### Server setup and data distribution
+### Server Setup and Data Distribution
 
-Although the API is presented as a single endpoint, Open-Meteo uses a lot of servers to distribute data processing. To download and process data, multiple virtual machines from cloud providers are used.
+While the API appears as a single endpoint, Open-Meteo relies on a distributed network of servers to handle data processing. To manage the downloading and processing of weather data, multiple virtual machines from cloud providers are employed.
 
-Very simplified the Open-Meteo system consists of:
-- Processing nodes to download and process weather model data
-- A S3 like central storage to keep all data and distribute it further
-- API nodes that fetch data from S3 and serve data to users
+The simplified structure of the Open-Meteo system includes:
+- **Processing Nodes:** Responsible for downloading and processing weather model data.
+- **Central Storage (S3-like):** A central storage system that retains all data and distributes is through an HTTP interface.
+- **API Nodes:** These nodes retrieve data from the central storage (S3) and serve it to users.
 
 ![System overview](images/system_processing_node_api.png)
 
-Open-Meteo uses a slightly different architecture: each Processing node exposes an S3 server and API nodes directly fetch data from each processing node. For an easier understanding the S3 storage can be viewed independently.
+Open-Meteo uses a slightly modified architecture where each processing node also functions as an S3 server. API nodes fetch data directly from these processing nodes. For clarity, the S3 storage can be viewed as a separate, centralized component.
 
-Although Open-Meteo is a distributed system, it can run on a single computer, processing data and running the API. However, at a certain scale, a single system is not practical anymore multiple servers are required.
+Although Open-Meteo operates as a distributed system, it can be run on a single machine that handles both data processing and API requests. However, as the scale increases, a single system becomes impractical, necessitating multiple servers.
 
-### Process Nodes
-Instances in North America are used to download and process data from NOAA and the Canadian weather service. Instances in Europe processes data from European weather services. Latency to the open-data servers plays a big role in processing speed for new runs.
+### Processing Nodes
+The Processing nodes download weahter model data and update a local database in Open-Meteo format.
 
-Each instances autonomously processes a couple of modes. E.g. Open-Meteo uses the following instances to process different models:
-- Process-us01: GFS013, GFS025, GFS025 ensemble
-- Process-us02: GEM global, RDPS, HRDPS, global ensemble
-- Process-us03: HRRR
-- Process-eu01: ICON, ICON-EU, ICON-D2
-- Process-eu02: MeteoFrance AROME, AROME-HD, ARPEGE Europe, ARPEGE World
-- and so on
+To optimize data processing, Open-Meteo deploys instances in different regions:
+- North American instances handle data from NOAA and the Canadian weather service.
+- European instances manage data from European weather services.
 
-By dividing processing to many instances, this makes it easier to scale and add new weather models. Different weather models have different CPU, memory and disk requirements that can be more easily balanced with distributed systems. For processing nodes, reliable servers are used to decrease the likelihood of failures.
+Low latency to the open-data servers is crucial for fast processing of new model runs.
 
+
+Each instance autonomously processes specific weather models. For example:
+- **Process-us01:** GFS013, GFS025, GFS025 ensemble
+- **Process-us02:** GEM global, RDPS, HRDPS, Global ensemble
+- **Process-us03:** HRRR
+- **Process-eu01:** ICON, ICON-EU, ICON-D2
+- **Process-eu02:** MeteoFrance AROME, AROME-HD, ARPEGE Europe, ARPEGE World
+
+Distributing processing across multiple instances makes it easier to scale operations and integrate new weather models. Different weather models have varying CPU, memory, and disk requirements, which can be more effectively managed in a distributed system. To ensure reliability, Open-Meteo uses dependable servers for data processing to minimize the risk of failures.
 
 
 ### Central S3 storage 
@@ -274,22 +279,22 @@ However, a proper S3 storage is recommended to scale the service. This can be AW
 
 ### API Nodes
 
-The API nodes synchronize data from the S3 storage. They check every couple of minutes for modifications and download modified files via HTTP. The Open-Meteo API embeds a synchronization utility to selectively download only the desired weather variables.
+The API nodes synchronize data from the S3 storage by checking for updates every few minutes and downloading any modified files via HTTP. The Open-Meteo API includes a synchronization utility that selectively downloads only the required weather variables.
 
-E.g. the following command will download all required files files that contain temperature on 2 metre above ground for the past 90 days and 10 days forecast. Additionally it will check every 5 minutes if files got modified (new run is available) and download the updated data.
+For example, the following command will download all necessary files containing 2 metre temperature data for the past 90 days, along with a 10-day forecast. It will also check every 5 minutes for any new data (such as a new model run) and download the updated files:
 
 ```bash 
 openmeteo-api sync ecmwf_ifs025 temperature_2m --past-days 90 --repeat-interval 5
 ```
 
-Per default, data will be downloaded from the public open-meteo S3 repository. With the parameter `--server https://my-s3-server.domain.tld/` data can be downloaded from a different server.
+By default, data is downloaded from the public Open-Meteo S3 repository. However, with the parameter `--server https://my-s3-server.domain.tld/`, data can be retrieved from an alternative server.
 
 
-Open-Meteo uses multiple dedicated servers with a load-balancer to serve data. Each API node typically has 2 TB storage to keep the recent 90 days of all weather forecast models on disk. The actual API nodes do not need reliable hardware. If a single API node fails, is does not effect API availability due to load-balancing.
+To serve data efficiently, Open-Meteo uses multiple dedicated servers behind a load balancer. Each API node typically has 2 TB of fast storage, enough to keep the most recent 90 days of all weather forecast models on disk. Nodes serving historical weather data, use servers with ~100TB regular disk storage. These API nodes do not require highly reliable hardware, as the load balancer ensures that the API remains available even if a single node fails.
 
-### Disk space requirements
+### Disk Space Requirements
 
-Below are approximately sizes how much storage an individual weather model requires with 90 days past data and forecast. Some models include pressure level variables which increase size significantly.
+Below are approximate storage requirements for individual weather models, including 90 days of historical data and forecasts. Note that models with pressure level variables require significantly more space.
 
 | Size | Model                              |
 | ---- | ---------------------------------- |
@@ -326,7 +331,7 @@ Below are approximately sizes how much storage an individual weather model requi
 | 172G | ukmo_global_deterministic_10km     |
 | 61G  | ukmo_uk_deterministic_2km          |
 
-If historical weather forecast and reanalysis data is stored as well, more space is required. As of 2024-09-03 the database size is:
+If historical weather forecasts and reanalysis data are also stored, additional space will be needed. As of September 3, 2024, the database size is:
 
 | Size | Model                              |
 | ---- | ---------------------------------- |
@@ -394,7 +399,7 @@ If historical weather forecast and reanalysis data is stored as well, more space
 | 251G | ukmo_uk_deterministic_2km          |
 
 
-Ensemble models with 14 days past data: (Note: Ensemble models are not archived, yet)
+Ensemble models with 14 days of past data: (Note: Ensemble models are not yet archived)
 
 | Size | Model                      |
 | ---- | -------------------------- |
@@ -409,55 +414,64 @@ Ensemble models with 14 days past data: (Note: Ensemble models are not archived,
 | 71G  | ncep_gefs05                |
 
 
-## Cloud Native Python Library
+## Cloud-Native Python Library
 
-Currently, users can only retrieve data from via a JSON API. The API can then efficiently return a small subset of data and the client only get the amount of data he actually needs. The client also does not require a processing power which is ideal for low power systems or handhelds and by using JSON data can be used with any programming language.
+Currently, users can retrieve data only through a JSON API. This API efficiently returns a small subset of data, ensuring that the client only receives the necessary information. This approach is ideal for low-power systems or handheld devices since it doesn't require significant processing power, and the JSON format makes the data accessible in any programming language. At the same time, the API server operate efficiently keeping frequently used data in server memory.
 
-For some use cases like machine learning, climate or risk analysis it can be useful to process nearly all data. Going through an API can be cumbersome. The client also has sufficient processing capabilities to work with larger amounts of data. In this case a cloud native approach can be ideal.
+However, for use cases like machine learning, climate research, or risk analysis, it may be more practical to process large volumes of data directly. In such cases, relying on an API can be cumbersome, especially if the client has sufficient processing capabilities to handle larger datasets. A cloud-native approach could be more suitable.
 
-The client could directly fetch the required data from the Open-Meteo files on S3. Due to the design of the OM files, individual parts of the file can be accessed without instead of downloading the entire file.
+With a cloud-native approach, the client can directly fetch the necessary data from Open-Meteo files stored on S3. The OM file format is designed so that specific parts of a file can be accessed without downloading the entire file.
 
 ![Cloud native](./images/api_and_cloud_native.png)
 
-A use-case could be to analyse temperature anomalies change over the past 10 years for a country using ERA5-Land. Using OM files, one year of temperature data in ERA5-Land at 0.1° resolution is 9.0 GB. With 10 years, 90 GB of data would be required to download in order to run the analysis. However, using a cloud native approach, only data covering the selected country can be analysed. This could reduce size from 90 GB to 1-2 GB. 
+For example, consider an analysis of temperature anomalies over the past 10 years for a specific country using ERA5-Land data. In ERA5-Land, one year of temperature data at 0.1° resolution amounts to 9.0 GB. Analyzing 10 years would typically require downloading 90 GB of data and 211 GB memory. However, with a cloud-native approach, only the data relevant to the selected country could be retrieved, potentially reducing the download size to 1-2 GB.
 
-To efficiently run analysis using cloud native files on S3, the underlaying library needs to be well designed:
+The Cloud-Native implementation for Open-Meteo files is not yet available, but Open-Meteo is actively exploring options for its development. To ensure it meets the needs of data scientists and adds value, the underlying library must be carefully designed, considering:
 
-1. Caching: Data needs to be cached on the client in order to re-run an analysis. This must be the default. Analysing data is not easy and while developing, the programm needs to be re-run many times before the desired output is achieved. If data would be downloaded again and again, this would take time and create undesired cost for bandwidth. This also frees up the burden of the user to implement his own cache.
+1. **Caching:** Data should be cached locally on the client to facilitate repeated analysis runs. This minimizes the need to re-download data, saving time and bandwidth costs. A built-in caching mechanism also relieves the user from implementing their own cache.
 
-2. Concurrent and asynchronous: Downloads must be capable for running in parallel and using multiple threads to decompress data. The `async` pattern should be used to download files. Downloads should be done in chunks and align with the underlaying storage system. If I recall correctly AWS S3 uses chunks of 16 MB. By splitting downloads in 16 MB blocks, much higher throughput can be achieved.
+2. **Concurrent and Asynchronous Operations**: Downloads should be capable of running in parallel, using multiple threads to decompress data. The async pattern should be employed for downloading files, with downloads split into chunks that align with the underlying storage system (e.g., 16 MB blocks for AWS S3) to maximize throughput.
 
-3. Performance: The Open-Meteo files take advantage of CPU vector instructions to encode and decode data. This should be enabled on the Python client as well. 
+3. **Performance:** The Open-Meteo file format leverages CPU vector instructions for data encoding and decoding. The Python client should also take advantage of these optimizations to ensure high performance.
 
-4. Stable APIs: Because users are now interactting directly with program APIs, they most remain stable to not break future source code compatibility.
+4. **Stable APIs:** Since users will be interacting directly with the library's APIs, it's essential to maintain stable interfaces to avoid breaking changes that could affect future code compatibility.
 
-5. Integations: The library should work well with Xarray, Numpy or Pandas.
+5. **Integrations:** The library should seamlessly integrate with popular Python data analysis tools such as Xarray, Numpy, and Pandas.
 
-Lastly, the Open-Meteo file format could also proof usefull for other applications as well. The multi-dimensional data-chunking and compression format could be an efficient storage format for other data. This is only possible with a stable Python client library.
+Furthermore, the Open-Meteo file format could be useful for other applications. Its multi-dimensional data-chunking and compression capabilities might serve as an efficient storage format for various types of data, which is possible with a stable Python client library. 
 
-The Open-Meteo Cloud native Python library is in early development with a small PoC protoype available. Open-Meteo would like to continue this development in Q4 2024 and Q1 2025.
+The Open-Meteo cloud-native Python library is in early development, with a small proof-of-concept prototype available. Open-Meteo plans to continue its development in Q4 2024 and Q1 2025.
 
-## Libraries for additional programming lanauges
+## Libraries for Additional Programming Languages
 
-Although the Python is the most popular programming languages for data scientists and most use-cases with climate and weather data can be handled with Python, libraries for other programming languages can be interesting. 
+While Python is the most popular programming language for data scientists and can handle most use cases involving climate and weather data, libraries for other programming languages could also be valuable.
 
-A Open-Meteo Cloud native client library for JavaScript could enable web-applications to load large datasets and generate maps directly on the client. Generating maps is resource intensive of done server-side. A map can be orders of magintude larger than the raw numeric weather data and rendering images on the server is CPU intensive. 
+For instance, an Open-Meteo cloud-native client library for JavaScript could enable web applications to load large datasets and generate maps directly on the client side. Server-side map generation can be resource-intensive, as maps can be orders of magnitude larger than the raw numerical weather data, and rendering images on the server demands significant CPU resources.
 
-Ideally, the library should use WebAssembly to also take full advantage of vector instructions for decompress data on the client quickly. 
+Ideally, such a library should utilize WebAssembly to fully leverage vector instructions for efficient data decompression on the client.
 
-Libraries for other programming languages are an option as well. 
+Libraries for additional programming languages are also being considered. The design of the initial Python client library will take into account the potential for future expansion to other languages.
 
 ## The road ahead
 
-The amout of open-data is constantly increasing and increasing the burden of national insitutes to supply offer data public domain. Cost for open-data distribution in form of storage, bandwidth and computing resources can be a releavant factor. Although prices for storage and compute are dropping, the cost for storage did not drop as much in the past 10 years compared to the amount of produced data.
+The volume of open data continues to rise, creating an increasing burden on national institutes to provide public access. The costs associated with open data distribution — such as storage, bandwidth, and computing resources — are becoming more substantial. While storage and compute prices have been declining, the reduction in costs has not kept pace with the rapid growth in data production over the past decade.
 
-On the other hand, more and more users are using open-data environmental which significantly increased in volumne as well as quality. This data is nowadays essential for research and commercial applications. Although increase is nice to see, it further causes issues for open-data distributions.
+Simultaneously, the use of open environmental data has surged, with notable improvements in both volume and quality. This data is now crucial for research and commercial applications. However, the growing demand introduces challenges for open data distribution systems.
 
-Over the course of a bit more than 2 years, Open-Meteo integrated all major weather forecast models and scaled a public weather API to serve up to 100 million forecasts per day to users all over the world. Hopefully having a helpful impact on reducing the amount of data that retrieved directly from national weather services otherwise. 
+In just over two years, Open-Meteo has successfully integrated all major weather forecast models and scaled a public weather API to deliver up to 100 million forecasts per day globally. This achievement has hopefully alleviated some of the direct data retrieval pressure on national weather services.
 
-Beginning of 2024 the underlaying Open-Meteo database has been made public through an AWS open-data sponsorship and sparked interest in the Python data science community to not only access weather data through an API, but also use the open-meteo database directly. It provides a good overview available weahter data from multiple sources and enables fast access for a variety of use-cases. 
+As of early 2024, the Open-Meteo database became publicly accessible through an AWS open-data sponsorship, igniting interest within the Python data science community. Users are now accessing not only weather data via the API but also the Open-Meteo database directly. This offers a comprehensive view of weather data from various sources and provides quick access for diverse applications.
 
-Open-Meteo would like to continue the current trajetory and integrate a broader spectrum of open-data environmental datasets and make data more accessible to the public. This is not limited to weather forecast or reanalysis models, but can be expanded to climate models, satellite, radar and other environmental data seamlessly.
+Moving forward, Open-Meteo aims to expand its efforts by integrating a broader spectrum of open environmental datasets, enhancing public accessibility. This expansion is not limited to weather forecasts and reanalysis models but will also encompass climate models, satellite data, radar data, and other environmental datasets.
 
-To achieve it, Open-Meteo could ideally collaborate with national weather services directly to improve efficiency and flexbility of the open-data distributions and as well provide a new standardized way of storing and accessing weather data throughout different weather services.
+To achieve these objectives, Open-Meteo plans to:
 
+1. **Enhance Collaboration:** Foster direct partnerships with national weather services to improve the efficiency and flexibility of open data distribution. Such collaborations could streamline data sharing processes and facilitate quicker updates.
+
+2. **Standardize Data Access:** Develop and promote a standardized approach for storing and accessing weather and environmental data across different services. This would improve data consistency and interoperability, making it easier for users to integrate and analyze information from various sources.
+
+3. **Improve Data Access Tools:** Continue to refine and expand data access tools, including the development of cloud-native libraries and support for additional programming languages. This will make it easier for users to work with large datasets and integrate them into their workflows.
+
+4. **Support for Advanced Data Use Cases:** Explore ways to support advanced use cases, such as large-scale climate modeling, real-time environmental monitoring, and comprehensive risk assessments. This could involve enhancing data processing capabilities and providing tools for efficient data analysis.
+
+By focusing on these areas, Open-Meteo aims to stay at the forefront of open environmental data distribution and provide valuable resources for researchers, businesses, and policymakers alike.

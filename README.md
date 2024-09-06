@@ -282,9 +282,11 @@ The Cloud-Native implementation for Open-Meteo files is not yet available, but O
 
 4. **Stable APIs:** Since users will be interacting directly with the library's APIs, it's essential to maintain stable interfaces to avoid breaking changes that could affect future code compatibility.
 
-5. **Integrations:** The library should seamlessly integrate with popular Python data analysis tools such as Xarray, Numpy, and Pandas.
+5. **Integrations:** The library should seamlessly integrate with popular Python data analysis tools such as Xarray, Numpy, and Pandas. A storage layer like `fsspec` with plugins for S3 can be used to directly access files on S3 and other storage backends.
 
 Furthermore, the Open-Meteo file format could be useful for other applications. Its multi-dimensional data-chunking and compression capabilities might serve as an efficient storage format for various types of data, which is possible with a stable Python client library. 
+
+To better serve a broader audience, the Open-Meteo file format may be revised to more effectively support higher-rank multidimensional tensor data and implement additional lossless compression schemes, such as CCSDS, RLE, or LZ4. It could also be enhanced to store multiple parameters within a single file and integrate additional metadata.
 
 The Open-Meteo cloud-native Python library is in early development, with a small proof-of-concept prototype available. Open-Meteo plans to continue its development in Q4 2024 and Q1 2025.
 

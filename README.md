@@ -10,7 +10,7 @@ With the Open-Meteo database now available publicly through AWS open data sponso
 
 The availability of open environmental data has grown exponentially, reaching levels that would have been unimaginable just a decade ago. National Weather Prediction (NWP) systems are increasingly offering open-access data, including high-resolution models that cover both global and local areas. However, as the volume of this data expands, accessing and using it efficiently is becoming increasingly challenging.
 
-Open-Meteo aims to address these challenges by revolutionizing the way weather forecasts and reanalysis data are distributed and accessed. Open-Meteo provides streamlined access to environmental data through fast and user-friendly APIs. These services are open for non-commercial and research purposes and integrate models from the leading NWPs across Europe, North America, and Asia.
+Open-Meteo aims to address these challenges by offering the way weather forecasts and reanalysis data are distributed and accessed. Open-Meteo provides streamlined access to environmental data through fast and user-friendly APIs. These services are open for non-commercial and research purposes and integrate models from the leading NWPs across Europe, North America, and Asia.
 
 Open-Meteo is an open-source project, developed by a Swiss sole proprietorship company `Zippenfenig OpenMeteo` funded by Patrick Zippenfenig in August 2022.
 
@@ -78,9 +78,7 @@ The approach uses a multidimensional data cube (hypercube) pivoted for fast time
 
 [Image Source: Data Cube or OLAP approach in Data Mining](https://www.geeksforgeeks.org/data-cube-or-olap-approach-in-data-mining/)
 
-single weather model run typically forecasts 7-16 days from a specific initialization time, such as 0z, 6z, 12z, or 18z. Due to the timing and time zone of the initialization, the forecast may not cover the current day, which can be inconvenient for many applications.
-
-To address this, instead of storing each run in separate files, Open-Meteo creates continuous time-series by consolidating the data into weekly files. New data is merged into these weekly files, automatically generating a seamless, continuous time-series.
+A single weather model run typically provides forecasts for 7 to 16 days from a specific initialization time, such as 0z, 6z, 12z, or 18z. Depending on the timing and time zone of the initialization, the forecast may not include the current day, which can be inconvenient for many applications. To address this, instead of storing each run in separate files, Open-Meteo creates continuous time-series by consolidating the data into weekly files. New data is merged into these weekly files, automatically generating a seamless, continuous time-series.
 
 ![Database run overlap](images/database_run_overlap.png)
 
@@ -110,15 +108,15 @@ This simplified approach illustrates how Open-Meteo stores weather model updates
 Storing gridded data as time-series optimized weekly files is specifically designed to support time-series APIs that aggregate multiple weather model runs. Future iterations of Open-Meteo may introduce additional data views to accommodate other use cases, such as spatial access for map generation.
 
 
-## Open-Meteo custom file format
+## Open-Meteo Custom File Format
 
 To efficiently store gridded data, Open-Meteo has developed its own custom file format. This format consists of a multi-dimensional chunked array compressed into a single file, similar to formats like Zarr, HDF5, or NetCDF.
 
 Creating a custom file format is usually inadvisable. However, there are two main reasons that justified the need for a custom file format:
 
-1. **Compression Ratio:** Given the vast amount of data involved, maximizing compression efficiency is a top priority. The compression method used in the Open-Meteo format is highly optimized specifically for weather data, which typically exhibits low frequency with high spatial and temporal correlation. By employing multi-dimensional delta coding and an integer compression scheme with fixed precision (e.g., 0.05K for temperature), this format achieves significantly higher compression ratios than existing file formats. Although the compression is lossy, the precision can be adjusted to preserve any important information. The compression is based on the FOR algorithm from [D. Lemire](https://github.com/lemire/FastPFor).
+1. **Compression Ratio:** Given the vast amount of data involved, maximizing compression efficiency is a top priority. The compression method used in the Open-Meteo format is highly optimized specifically for weather data, which typically exhibits low frequency with high spatial and temporal correlation. By employing multi-dimensional delta coding and an integer compression scheme with fixed precision (e.g., 0.05K for temperature), this format achieves significantly higher compression ratios than existing file formats. Although the compression is lossy, the precision can be adjusted to preserve any important information. The compression is based on the PFor algorithm from [D. Lemire](https://github.com/lemire/FastPFor).
 
-2. **Performance:** Good compression ratio, results usually in bad compression speed. However, giant amounts of data also need to be compressed quickly as weather forecasts need to be as up to date as possible. With optimizations for SIMD (AVX2, ARM NEON), Open-Meteo can achieve compression and decompression speeds of over `1 GB/s` on a single CPU core.
+2. **Performance:** Achieving a good compression ratio often comes at the expense of slower compression speeds. However, given the vast amounts of data involved, fast compression speeds are essential to ensure that weather forecasts are up-to-date. With optimizations for SIMD (AVX2, ARM NEON), Open-Meteo can achieve compression and decompression speeds of over `1 GB/s` on a single CPU core. This enables rapid processing even for high-resolution weather models.
 
 In addition to these primary considerations, the file format also meets other essential requirements for storing gridded data, which are also achievable with other formats:
 
@@ -126,11 +124,13 @@ In addition to these primary considerations, the file format also meets other es
 
 2. **Simplicity and Cloud-Native Design:** The straightforward, chunked data structure is well-suited for cloud-native environments, allowing for partial file access. For example, time-series data for a single coordinate can be accessed by downloading only the relevant data chunks, rather than the entire file.
 
-3. **Streaming Updates for Large Datasets:** The format supports streaming updates for datasets that exceed available memory. By processing data in small chunks, large files can be managed efficiently. For instance, ERA5-Land data (0.1° resolution) is stored in yearly files with dimensions `[3600, 1800, 8760]`, which would require `211.46 GB` of memory as a floating-point array. After compression, this size is reduced to `9.0 GB`, achieving a 23x compression ratio due to missing sea data. ERA5 data at 0.25° resolution would require `[1440, 720, 8760] => 34 GB` in raw floating-point array size, compressed to `4.0 GB` with an 11.3x compression ratio.
+3. **Streaming Updates for Large Datasets:** The format supports streaming updates for datasets that exceed available memory. By processing data in small chunks, large files can be managed efficiently. For instance, ERA5-Land data (0.1° resolution) is stored in yearly files with dimensions for x, y and time `[3600, 1800, 8760]`, which would require `211.46 GB` of memory as a floating-point array. After compression, this size is reduced to `9.0 GB`, achieving a 23x compression ratio. ERA5 data at 0.25° resolution would require `[1440, 720, 8760] => 34 GB` in raw floating-point array size, compressed to `4.0 GB` with an 11.3x compression ratio. The higher compression ratio for ERA5-Land is due to the exclusion of sea data.
 
-4. **Plain Single Files:** The format’s use of standard files allows for easy copying to different servers or cloud storage. Since the data could be updated while being accessed, atomic file copying is essential. Some file libraries or database systems store data in ways that do not support atomic copying, but the Open-Meteo format avoids this issue.
+4. **Plain Single Files:** The format’s use of standard files allows for easy copying to different servers or cloud storage.
 
 While developing a custom file format may seem like "reinventing the wheel," existing formats did not meet the specific requirements for Open-Meteo, and the effort to create a new format was manageable. This file format has been in use for over two years and has proven to be highly effective. Although further iterations may be needed to improve portability and flexibility, it remains the most viable solution for Open-Meteo's needs.
+
+A later chapter explores how the Open-Meteo file format could be extended for direct use in Python, unlocking new possibilities.
 
 A technical description of the file format can be found here: [Open-Meteo File Format](https://github.com/open-meteo/open-data?tab=readme-ov-file#file-format)
 
@@ -175,7 +175,7 @@ The potential for adding new datasets and weather models is virtually limitless.
 
 Open-Meteo organizes its data into files using a straightforward directory structure. Each weather model has its own directory, within which there are subdirectories for each weather variable. These subdirectories contain files that typically hold 1-2 weeks of data.
 
-Through an AWS open-data sponsorship, the database is also accessible here [Open-Meteo S3](https://openmeteo.s3.amazonaws.com/index.html#data/).
+Through an AWS open-data sponsorship, parts of the database are also accessible here [Open-Meteo S3](https://openmeteo.s3.amazonaws.com/index.html#data/).
 
 ```
 data/ecmwf_ifs025/temperature_2m
@@ -251,7 +251,7 @@ The Open-Meteo API also supports additional options:
 
 Future API Features:
 
-1. **Maps API:** As user demand grows for data covering large areas to generate maps, Open-Meteo plans to develop a dedicated endpoint for this purpose. The API is optimized for time-series data, and map generation is a worst-case use case, but data could be stored in different views to accelerate access.
+1. **Web Map Service (WMS):** As user demand grows for data covering large areas to generate maps, Open-Meteo plans to develop a dedicated endpoint for this purpose. The API is optimized for time-series data, and map generation is a worst-case use case, but data could be stored in different views to accelerate access.
 
 2. **Cloud-Native Mode:** Currently, the API requires local access to the database for optimal performance, serving weather data within milliseconds. However, as the Open-Meteo database continues to expand, deploying servers with large local storage becomes increasingly challenging. A cloud-native mode would enable the API to fetch data on demand from an S3 server hosting the Open-Meteo files. By maintaining a local cache of essential data, this approach could balance performance with ease of deployment for additional API nodes.
 
